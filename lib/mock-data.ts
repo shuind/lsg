@@ -13,6 +13,8 @@ export type Chapter = {
   index: number
   wordCount: number
   status: "draft" | "writing" | "done"
+  path?: string
+  updatedAt?: string
 }
 
 // 对话气泡里嵌入的"理解 / 上下文 / 缺失信息"

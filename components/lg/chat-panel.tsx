@@ -162,20 +162,23 @@ function IntentBriefCard({ brief }: { brief: NonNullable<Message["brief"]> }) {
         </ul>
       </BriefRow>
 
-      <Divider />
-
-      <BriefRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="使用的上下文">
-        <div className="flex flex-wrap gap-1">
-          {brief.contextPaths.map((p) => (
-            <span
-              key={p}
-              className="rounded-md bg-muted/50 px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground ring-1 ring-border/40"
-            >
-              {p}
-            </span>
-          ))}
-        </div>
-      </BriefRow>
+      {brief.contextPaths && brief.contextPaths.length > 0 && (
+        <>
+          <Divider />
+          <BriefRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="使用的上下文">
+            <div className="flex flex-wrap gap-1">
+              {brief.contextPaths.map((p) => (
+                <span
+                  key={p}
+                  className="rounded-md bg-muted/50 px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground ring-1 ring-border/40"
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+          </BriefRow>
+        </>
+      )}
 
       {brief.missing && brief.missing.length > 0 && (
         <>

@@ -29,14 +29,20 @@ export default function Page() {
   const [messages, setMessages] = useState<Message[]>([])
   const [actions, setActions] = useState<ActionNode[]>([])
   const [cards, setCards] = useState<SettingCard[]>([])
-  const [activeBookId, setActiveBookId] = useState<string>("b1")
+  const [activeBookId, setActiveBookId] = useState<string>("")
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode>("chat")
   const [collapsed, setCollapsed] = useState(false)
   const [workbenchBookId, setWorkbenchBookId] = useState<string | null>(null)
 
   useEffect(() => {
-    listBooks().then(setBooks)
+    listBooks().then((bs) => {
+      setBooks(bs)
+      setActiveBookId((prev) => {
+        if (prev && bs.some((b) => b.id === prev)) return prev
+        return bs[0]?.id ?? ""
+      })
+    })
   }, [])
 
   useEffect(() => {
@@ -55,32 +61,53 @@ export default function Page() {
       createdAt: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
     }
     setMessages((m) => [...m, userMsg])
-    const { message } = await sendMessage(activeBookId, text)
+    const { message, plan } = await sendMessage(activeBookId, text)
     setMessages((m) => [...m, message])
+    if (plan.length > 0) setActions(plan)
   }
 
   async function handleNewBook() {
-    const b = await createBook()
-    setBooks((bs) => [b, ...bs])
-    setActiveBookId(b.id)
-    setMode("chat")
+    const title = window.prompt("请输入书名")
+    if (!title?.trim()) return
+    try {
+      const b = await createBook(title.trim())
+      const bs = await listBooks()
+      setBooks(bs)
+      setActiveBookId(b.id)
+      setActiveChapterId(null)
+      setMode("chat")
+      setWorkbenchBookId(null)
+    } catch (err) {
+      console.error("[handleNewBook] 创建书籍失败:", err)
+      alert("创建书籍失败，请重试")
+    }
   }
 
   async function handleNewChapter() {
     const c = await createChapter(activeBookId)
-    setChapters((cs) => [...cs, c])
+    // refresh full list from server to get accurate index/mtime
+    const fresh = await listChapters(activeBookId)
+    setChapters(fresh)
     setActiveChapterId(c.id)
     setMode("writing")
   }
 
   async function handleConfirmSubtree(id: string) {
-    await confirmAction(id)
-    setActions((tree) => removeNode(tree, id))
+    const plan = await confirmAction(activeBookId, id)
+    if (plan.length > 0) {
+      setActions(plan)
+    } else {
+      setActions((tree) => removeNode(tree, id))
+    }
   }
 
   async function handleAbandon(id: string) {
-    await abandonAction(id)
-    setActions((tree) => removeNode(tree, id))
+    const plan = await abandonAction(activeBookId, id)
+    if (plan.length > 0) {
+      setActions(plan)
+    } else {
+      setActions((tree) => removeNode(tree, id))
+    }
   }
 
   const activeBook = books.find((b) => b.id === activeBookId)
@@ -141,7 +168,7 @@ export default function Page() {
           {mode === "chat" ? (
             <ChatPanel bookTitle={activeBook?.title ?? ""} messages={messages} onSend={handleSend} />
           ) : activeChapterId ? (
-            <WritingDesk chapterId={activeChapterId} />
+            <WritingDesk bookId={activeBookId} chapterId={activeChapterId} />
           ) : null}
         </div>
 

@@ -6,42 +6,65 @@ import { cn } from "@/lib/utils"
 import { generateDraft, getChapter, saveChapter } from "@/lib/api"
 
 interface WritingDeskProps {
+  bookId: string
   chapterId: string
 }
 
-export function WritingDesk({ chapterId }: WritingDeskProps) {
+export function WritingDesk({ bookId, chapterId }: WritingDeskProps) {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [draft, setDraft] = useState<string>("")
   const [generating, setGenerating] = useState(false)
   const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    getChapter(chapterId).then((c) => {
+    setNotFound(false)
+    setSavedAt(null)
+    getChapter(bookId, chapterId).then((c) => {
+      if (!c.content && !c.title) {
+        setNotFound(true)
+        return
+      }
       setTitle(c.title)
       setContent(c.content)
     })
-  }, [chapterId])
+  }, [bookId, chapterId])
 
   // 自动保存
   useEffect(() => {
-    if (!content) return
+    if (!content || notFound) return
     const t = setTimeout(() => {
-      saveChapter(chapterId, content).then(() =>
-        setSavedAt(new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })),
+      saveChapter(bookId, chapterId, content).then((r) =>
+        setSavedAt(new Date(r.updatedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })),
       )
     }, 2000)
     return () => clearTimeout(t)
-  }, [content, chapterId])
+  }, [content, bookId, chapterId, notFound])
 
   async function handleGenerate() {
     setGenerating(true)
-    const text = await generateDraft(content.slice(-200))
-    setDraft(text)
+    const prompt = draft ? `已有试写内容：\n${draft}\n\n请继续续写。` : undefined
+    const text = await generateDraft(bookId, chapterId, prompt)
+    setDraft((prev) => (prev ? prev + "\n\n" + text : text))
     setGenerating(false)
   }
 
   const wordCount = content.replace(/\s/g, "").length
+
+  if (notFound) {
+    return (
+      <section className="flex h-full min-h-0 flex-col items-center justify-center gap-4 text-center">
+        <div className="text-[13px] text-muted-foreground">章节不存在或已被删除</div>
+        <button
+          onClick={() => setNotFound(false)}
+          className="rounded-md bg-card px-3 py-1.5 text-[12px] text-foreground ring-1 ring-border transition hover:bg-secondary"
+        >
+          重试
+        </button>
+      </section>
+    )
+  }
 
   return (
     <section className="relative flex h-full min-h-0 flex-col">

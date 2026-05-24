@@ -17,7 +17,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Book, WorkbenchGroup, WorkbenchFile } from "@/lib/mock-data"
-import { listWorkbenchTree, readWorkbenchFile, writeWorkbenchFile } from "@/lib/api"
+import type { LedgerEntry, Skill } from "@/lib/types"
+import { listWorkbenchTree, readWorkbenchFile, writeWorkbenchFile, listLedgerEntries, getStyleGuideSkill, refreshStyleGuideSummary } from "@/lib/api"
 
 interface WorkbenchProps {
   book: Book
@@ -29,20 +30,49 @@ type Tab = "editor" | "graph" | "ledger" | "skill"
 export function Workbench({ book, onClose }: WorkbenchProps) {
   const [tab, setTab] = useState<Tab>("editor")
   const [tree, setTree] = useState<WorkbenchGroup[]>([])
-  const [activePath, setActivePath] = useState<string>("人物设定/林晓.md")
+  const [activePath, setActivePath] = useState<string>("")
   const [content, setContent] = useState<string>("")
   const [savedContent, setSavedContent] = useState<string>("")
-  const [savedAt, setSavedAt] = useState<string>("2026-05-24 11:03")
+  const [savedAt, setSavedAt] = useState<string>("")
   const [query, setQuery] = useState("")
+  const [ledgerKey, setLedgerKey] = useState(0)
 
+  // helper: find first file in tree
+  function findFirstFile(groups: WorkbenchGroup[]): string {
+    for (const g of groups) {
+      if (g.files.length > 0) return g.files[0].path
+    }
+    return ""
+  }
+
+  // load tree, then auto-select first file if no activePath
   useEffect(() => {
-    listWorkbenchTree(book.id).then(setTree)
+    listWorkbenchTree(book.id).then((t) => {
+      setTree(t)
+      setActivePath((prev) => {
+        if (prev) return prev
+        return findFirstFile(t)
+      })
+    })
   }, [book.id])
 
+  // load file content when activePath changes
   useEffect(() => {
-    readWorkbenchFile(book.id, activePath).then((c) => {
+    if (!activePath) return
+    readWorkbenchFile(book.id, activePath).then(({ content: c, updatedAt }) => {
       setContent(c)
       setSavedContent(c)
+      if (updatedAt) {
+        setSavedAt(
+          new Date(updatedAt).toLocaleString("zh-CN", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        )
+      }
     })
   }, [book.id, activePath])
 
@@ -53,10 +83,10 @@ export function Workbench({ book, onClose }: WorkbenchProps) {
   }, [tree, activePath])
 
   async function handleSave() {
-    await writeWorkbenchFile(book.id, activePath, content)
+    const result = await writeWorkbenchFile(book.id, activePath, content)
     setSavedContent(content)
     setSavedAt(
-      new Date().toLocaleString("zh-CN", {
+      new Date(result.updatedAt).toLocaleString("zh-CN", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -64,6 +94,10 @@ export function Workbench({ book, onClose }: WorkbenchProps) {
         minute: "2-digit",
       }),
     )
+    // refresh tree so file timestamps update
+    listWorkbenchTree(book.id).then(setTree)
+    // refresh ledger
+    setLedgerKey((k) => k + 1)
   }
 
   const filteredTree = useMemo(() => {
@@ -158,8 +192,8 @@ export function Workbench({ book, onClose }: WorkbenchProps) {
             />
           )}
           {tab === "graph" && <GraphPane />}
-          {tab === "ledger" && <LedgerPane />}
-          {tab === "skill" && <SkillPane />}
+          {tab === "ledger" && <LedgerPane key={ledgerKey} bookId={book.id} />}
+          {tab === "skill" && <SkillPane bookId={book.id} />}
         </div>
 
         {/* 右:文件树 */}
@@ -339,22 +373,204 @@ function GraphPane() {
     />
   )
 }
-function LedgerPane() {
+function LedgerPane({ bookId }: { bookId: string }) {
+  const [entries, setEntries] = useState<LedgerEntry[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    listLedgerEntries(bookId)
+      .then(setEntries)
+      .finally(() => setLoading(false))
+  }, [bookId])
+
+  // refresh when tab becomes visible (workaround: re-fetch on mount)
+  // also expose a manual refresh via re-mount by using tab key
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center px-10">
+        <div className="text-[12px] text-muted-foreground">加载中…</div>
+      </div>
+    )
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center px-10">
+        <div className="paper rounded-2xl border border-border/60 bg-card/60 p-8 text-center backdrop-blur">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent/30 to-transparent ring-1 ring-border/50 animate-breathe-glow text-accent-foreground/80">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div className="mt-3 font-serif text-[18px] text-foreground">Ledger</div>
+          <p className="mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">
+            暂无操作记录。保存文件后会自动记录。
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <PlaceholderPane
-      icon={<FileText className="h-5 w-5" />}
-      title="Ledger"
-      desc="所有改动以 jsonl 形式按时间线记录,可回放、可审计。"
-    />
+    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-10 py-6">
+      <div className="mx-auto max-w-3xl space-y-2">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="font-serif text-[14px] text-foreground">操作记录</div>
+          <span className="text-[11px] text-muted-foreground">{entries.length} 条</span>
+        </div>
+        {entries.map((e) => (
+          <div
+            key={e.id}
+            className="paper rounded-lg border border-border/60 bg-card/60 px-4 py-3 backdrop-blur"
+          >
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="font-mono">
+                {new Date(e.timestamp).toLocaleString("zh-CN", {
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
+              </span>
+              <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px]">{e.action}</span>
+              <span className="text-muted-foreground/60">by {e.actor}</span>
+            </div>
+            <div className="mt-1 text-[12.5px] text-foreground/90">{e.summary}</div>
+            <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground/60">{e.targetPath}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
-function SkillPane() {
+function SkillPane({ bookId }: { bookId: string }) {
+  const [skill, setSkill] = useState<Skill | null>(null)
+  const [summary, setSummary] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    getStyleGuideSkill(bookId)
+      .then(({ skill: s, summary: sm }) => {
+        setSkill(s)
+        setSummary(sm)
+      })
+      .finally(() => setLoading(false))
+  }, [bookId])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      const { skill: s, summary: sm } = await refreshStyleGuideSummary(bookId)
+      setSkill(s)
+      setSummary(sm)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center px-10">
+        <div className="text-[12px] text-muted-foreground">加载中…</div>
+      </div>
+    )
+  }
+
   return (
-    <PlaceholderPane
-      icon={<Sparkles className="h-5 w-5" />}
-      title="Skill"
-      desc="为这本书安装的写作技能、风格预设与自动化规则。"
-    />
+    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-10 py-6">
+      <div className="mx-auto max-w-3xl">
+        {/* Header */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-muted-foreground/80" />
+            <span className="font-serif text-[14px] text-foreground">创作指南摘要</span>
+            {skill?.dirty ? (
+              <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
+                需要刷新
+              </span>
+            ) : (
+              <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+                最新
+              </span>
+            )}
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1 text-[11.5px] font-medium text-background transition hover:opacity-90 disabled:opacity-40"
+          >
+            <Sparkles className="h-3 w-3" />
+            {refreshing ? "刷新中…" : "刷新摘要"}
+          </button>
+        </div>
+
+        {/* Metadata */}
+        <div className="paper mb-4 rounded-lg border border-border/60 bg-card/60 px-4 py-3 backdrop-blur">
+          <div className="space-y-1.5 text-[11.5px]">
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-muted-foreground">源文件</span>
+              <span className="font-mono text-foreground/80">{skill?.sourceFile ?? "—"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-muted-foreground">摘要文件</span>
+              <span className="font-mono text-foreground/80">{skill?.summaryFile ?? "—"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-muted-foreground">源文件修改</span>
+              <span className="font-mono text-foreground/80">
+                {skill?.lastSourceModified
+                  ? new Date(skill.lastSourceModified).toLocaleString("zh-CN", {
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-muted-foreground">摘要生成</span>
+              <span className="font-mono text-foreground/80">
+                {skill?.lastSummaryGenerated
+                  ? new Date(skill.lastSummaryGenerated).toLocaleString("zh-CN", {
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-muted-foreground">Token 估算</span>
+              <span className="font-mono text-foreground/80">{skill?.summaryTokenCount ?? 0}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary content */}
+        {summary.trim() ? (
+          <div className="paper rounded-2xl border border-border/60 bg-card/60 p-6 backdrop-blur">
+            <pre className="whitespace-pre-wrap font-serif text-[13px] leading-[1.8] text-foreground/90">
+              {summary}
+            </pre>
+          </div>
+        ) : (
+          <div className="paper rounded-2xl border border-border/60 bg-card/60 p-8 text-center backdrop-blur">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent/30 to-transparent ring-1 ring-border/50 animate-breathe-glow text-accent-foreground/80">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="mt-3 font-serif text-[18px] text-foreground">暂无摘要</div>
+            <p className="mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">
+              点击"刷新摘要"按钮生成创作指南摘要。
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -1,10 +1,8 @@
 "use client"
 
-import { useState } from "react"
 import {
   BookOpen,
   Plus,
-  ChevronRight,
   FileText,
   ArrowLeft,
   Settings,
