@@ -12,7 +12,11 @@ const SKIP_FILES = new Set(["ledger.jsonl", "pending-action-plan.json", "book.js
 // ─── Keyword Extraction ───────────────────────────────────────
 
 const NAME_RE = /把\s*(.+?)\s*(?:改|换|变成?|和|跟|与)/g
-const PATH_HINTS = ["创作指南", "关系图谱", "世界观", "人物设定", "章节大纲", "章节", "skills"]
+const PATH_HINTS = [
+  "创作指南", "关系图谱", "世界观", "人物设定", "章节大纲", "章节", "skills",
+  "剧情管理", "状态追踪", "读者体验", "写作约束", "章节摘要", "检查报告",
+  "伏笔", "时间线", "位置", "信息差", "情绪", "爽点", "禁止项", "质量",
+]
 
 function extractKeywords(query: string): string[] {
   const keywords: string[] = []
@@ -110,20 +114,18 @@ export async function retrieveContext(bookId: string, query: string): Promise<Re
   const tree = await getBookTree(bookId)
   const allFiles = flattenTree(tree).filter((f) => !SKIP_FILES.has(f.name))
 
-  // score each file
+  // score each file — first pass: filename/path matching only (no I/O)
   const scored: { file: FlatFile; reason: RetrievedContext["reason"]; score: number }[] = []
 
   for (const file of allFiles) {
     let score = 0
     let reason: RetrievedContext["reason"] = "recent"
 
-    // dirty files get highest priority
     if (dirtyPaths.has(file.path)) {
       score += 100
       reason = "dirty"
     }
 
-    // keyword match on filename
     for (const kw of keywords) {
       if (file.name.includes(kw) || file.path.includes(kw)) {
         score += 50
@@ -131,25 +133,6 @@ export async function retrieveContext(bookId: string, query: string): Promise<Re
       }
     }
 
-    // keyword match on content (read file)
-    if (score < 50 && keywords.length > 0) {
-      try {
-        const content = await readBookFile(bookId, file.path)
-        if (content) {
-          for (const kw of keywords) {
-            if (content.includes(kw)) {
-              score += 30
-              if (reason !== "dirty") reason = "keyword"
-              break
-            }
-          }
-        }
-      } catch {
-        // skip unreadable files
-      }
-    }
-
-    // recency bonus (files modified in last hour get a small boost)
     if (file.updatedAt) {
       const age = Date.now() - new Date(file.updatedAt).getTime()
       if (age < 3600_000) score += 10
@@ -161,7 +144,7 @@ export async function retrieveContext(bookId: string, query: string): Promise<Re
     }
   }
 
-  // also add dirty files that might not have scored (e.g. no keyword match)
+  // also add dirty files that might not have scored
   for (const entry of dirtyEntries) {
     if (!scored.some((s) => s.file.path === entry.path) && !SKIP_FILES.has(entry.path.split("/").pop() ?? "")) {
       scored.push({
@@ -169,6 +152,30 @@ export async function retrieveContext(bookId: string, query: string): Promise<Re
         reason: "dirty",
         score: 100,
       })
+    }
+  }
+
+  // second pass: only read content for files that didn't score by filename
+  // and only if we don't already have enough results
+  if (scored.length < MAX_RESULTS && keywords.length > 0) {
+    const unscored = allFiles.filter(
+      (f) => !scored.some((s) => s.file.path === f.path)
+    )
+    for (const file of unscored.slice(0, 20)) {
+      try {
+        const content = await readBookFile(bookId, file.path)
+        if (content) {
+          for (const kw of keywords) {
+            if (content.includes(kw)) {
+              scored.push({ file, reason: "keyword", score: 30 })
+              break
+            }
+          }
+        }
+      } catch {
+        // skip unreadable
+      }
+      if (scored.length >= MAX_RESULTS * 2) break
     }
   }
 

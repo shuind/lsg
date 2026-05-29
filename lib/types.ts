@@ -79,7 +79,7 @@ export interface ChapterContent {
 
 export interface IntentBrief {
   understood: string[]
-  contextPaths: string[]
+  contextPaths?: string[]
   missing?: string[]
 }
 

@@ -1,13 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
+    tsconfigPath: "tsconfig.next.json",
   },
   images: {
     unoptimized: true,
-  },
-  turbopack: {
-    root: process.cwd(),
   },
 }
 

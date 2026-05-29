@@ -9,6 +9,7 @@ import { Workbench } from "@/components/lg/workbench"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   listBooks,
+  initBook,
   listChapters,
   listMessages,
   getActionPlan,
@@ -18,6 +19,7 @@ import {
   abandonAction,
   createBook,
   createChapter,
+  renameBook,
 } from "@/lib/api"
 import type { Book, Chapter, Message, ActionNode, SettingCard } from "@/lib/mock-data"
 
@@ -47,10 +49,12 @@ export default function Page() {
 
   useEffect(() => {
     if (!activeBookId) return
-    listChapters(activeBookId).then(setChapters)
-    listMessages(activeBookId).then(setMessages)
-    getActionPlan(activeBookId).then(setActions)
-    listSettingCards(activeBookId).then(setCards)
+    initBook(activeBookId).then(({ chapters, messages, plan, cards }) => {
+      setChapters(chapters)
+      setMessages(messages)
+      setActions(plan)
+      setCards(cards)
+    })
   }, [activeBookId])
 
   async function handleSend(text: string) {
@@ -83,6 +87,13 @@ export default function Page() {
     }
   }
 
+  async function handleRenameBook(bookId: string, newTitle: string) {
+    const result = await renameBook(bookId, newTitle)
+    if (result) {
+      setBooks((prev) => prev.map((b) => (b.id === bookId ? { ...b, title: result.title } : b)))
+    }
+  }
+
   async function handleNewChapter() {
     const c = await createChapter(activeBookId)
     // refresh full list from server to get accurate index/mtime
@@ -110,6 +121,10 @@ export default function Page() {
     }
   }
 
+  function handleEditNode(id: string, field: "label" | "diff", value: string) {
+    setActions((tree) => updateNodeField(tree, id, field, value))
+  }
+
   const activeBook = books.find((b) => b.id === activeBookId)
   const workbenchBook = books.find((b) => b.id === workbenchBookId)
 
@@ -117,10 +132,10 @@ export default function Page() {
 
   return (
     <main className="ambient-window relative h-screen w-screen overflow-hidden">
-      {/* 全屏柔光层 */}
+      {/* 全屏柔光层 — 静态，不做动画避免持续 GPU 重绘 */}
       <div className="pointer-events-none absolute inset-0 -z-0">
-        <div className="absolute -right-24 -top-24 h-[420px] w-[420px] rounded-full bg-[var(--light-warm)] opacity-60 blur-3xl animate-drift" />
-        <div className="absolute -bottom-32 -left-24 h-[380px] w-[380px] rounded-full bg-[var(--light-cool)] opacity-40 blur-3xl animate-drift dark:opacity-25" />
+        <div className="absolute -right-24 -top-24 h-[420px] w-[420px] rounded-full bg-[var(--light-warm)] opacity-60 blur-3xl" />
+        <div className="absolute -bottom-32 -left-24 h-[380px] w-[380px] rounded-full bg-[var(--light-cool)] opacity-40 blur-3xl dark:opacity-25" />
       </div>
 
       <div className={`relative z-10 grid h-full min-h-0 ${gridCols} transition-[grid-template-columns] duration-300`}>
@@ -160,6 +175,7 @@ export default function Page() {
             onNewBook={handleNewBook}
             onNewChapter={handleNewChapter}
             onOpenWorkbench={(id) => setWorkbenchBookId(id)}
+            onRenameBook={handleRenameBook}
           />
         </div>
 
@@ -179,6 +195,7 @@ export default function Page() {
             cards={cards}
             onConfirm={handleConfirmSubtree}
             onAbandon={handleAbandon}
+            onEdit={handleEditNode}
             onCite={(c) => console.log("[v0] cite", c.name)}
           />
         </div>
@@ -194,4 +211,12 @@ function removeNode(tree: ActionNode[], id: string): ActionNode[] {
   return tree
     .filter((n) => n.id !== id)
     .map((n) => (n.children ? { ...n, children: removeNode(n.children, id) } : n))
+}
+
+function updateNodeField(tree: ActionNode[], id: string, field: "label" | "diff", value: string): ActionNode[] {
+  return tree.map((n) => {
+    if (n.id === id) return { ...n, [field]: value }
+    if (n.children) return { ...n, children: updateNodeField(n.children, id, field, value) }
+    return n
+  })
 }

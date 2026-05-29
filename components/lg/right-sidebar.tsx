@@ -31,16 +31,17 @@ interface RightSidebarProps {
   cards: SettingCard[]
   onConfirm: (id: string) => void
   onAbandon: (id: string) => void
+  onEdit: (id: string, field: "label" | "diff", value: string) => void
   onCite: (card: SettingCard) => void
 }
 
-export function RightSidebar({ actions, cards, onConfirm, onAbandon, onCite }: RightSidebarProps) {
+export function RightSidebar({ actions, cards, onConfirm, onAbandon, onEdit, onCite }: RightSidebarProps) {
   const [tab, setTab] = useState<"plan" | "settings">("plan")
   const [expanded, setExpanded] = useState(false)
 
   return (
     <>
-      <aside className="relative flex h-full min-h-0 w-full flex-col bg-sidebar/40 paper-soft backdrop-blur-xl">
+      <aside className="relative flex h-full min-h-0 w-full flex-col bg-sidebar/80 paper-soft">
         {/* Tabs - fixed */}
         <div className="shrink-0 px-4 pt-5 pb-3">
           <div className="flex items-center gap-1">
@@ -67,7 +68,7 @@ export function RightSidebar({ actions, cards, onConfirm, onAbandon, onCite }: R
         {/* Scroll body */}
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-4 pb-6">
           {tab === "plan" ? (
-            <PlanView actions={actions} onConfirm={onConfirm} onAbandon={onAbandon} compact />
+            <PlanView actions={actions} onConfirm={onConfirm} onAbandon={onAbandon} onEdit={onEdit} compact />
           ) : (
             <SettingsView cards={cards} onCite={onCite} />
           )}
@@ -79,6 +80,7 @@ export function RightSidebar({ actions, cards, onConfirm, onAbandon, onCite }: R
           actions={actions}
           onConfirm={onConfirm}
           onAbandon={onAbandon}
+          onEdit={onEdit}
           onClose={() => setExpanded(false)}
         />
       )}
@@ -90,18 +92,20 @@ function ExpandedPlan({
   actions,
   onConfirm,
   onAbandon,
+  onEdit,
   onClose,
 }: {
   actions: ActionNode[]
   onConfirm: (id: string) => void
   onAbandon: (id: string) => void
+  onEdit: (id: string, field: "label" | "diff", value: string) => void
   onClose: () => void
 }) {
   return (
-    <div className="absolute inset-0 z-30 flex flex-col bg-background/95 backdrop-blur-2xl animate-in fade-in duration-200">
+    <div className="absolute inset-0 z-30 flex flex-col bg-background/98 animate-in fade-in duration-200">
       <div className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
-        <div className="absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-[var(--light-warm)] opacity-50 blur-3xl animate-drift" />
-        <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full bg-[var(--light-cool)] opacity-30 blur-3xl animate-drift dark:opacity-20" />
+        <div className="absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-[var(--light-warm)] opacity-50 blur-3xl" />
+        <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full bg-[var(--light-cool)] opacity-30 blur-3xl dark:opacity-20" />
       </div>
 
       <header className="relative z-10 flex shrink-0 items-center gap-3 border-b border-border/60 bg-card/40 px-6 py-3 backdrop-blur paper-soft">
@@ -122,7 +126,7 @@ function ExpandedPlan({
 
       <div className="relative z-10 min-h-0 flex-1 overflow-y-auto scrollbar-thin">
         <div className="mx-auto max-w-5xl px-8 py-8">
-          <PlanView actions={actions} onConfirm={onConfirm} onAbandon={onAbandon} />
+          <PlanView actions={actions} onConfirm={onConfirm} onAbandon={onAbandon} onEdit={onEdit} />
         </div>
       </div>
     </div>
@@ -158,11 +162,13 @@ function PlanView({
   actions,
   onConfirm,
   onAbandon,
+  onEdit,
   compact = false,
 }: {
   actions: ActionNode[]
   onConfirm: (id: string) => void
   onAbandon: (id: string) => void
+  onEdit: (id: string, field: "label" | "diff", value: string) => void
   compact?: boolean
 }) {
   if (actions.length === 0) {
@@ -183,6 +189,7 @@ function PlanView({
           compact={compact}
           onConfirm={onConfirm}
           onAbandon={onAbandon}
+          onEdit={onEdit}
         />
       ))}
     </div>
@@ -210,12 +217,14 @@ function ActionTreeNode({
   compact = false,
   onConfirm,
   onAbandon,
+  onEdit,
 }: {
   node: ActionNode
   depth: number
   compact?: boolean
   onConfirm: (id: string) => void
   onAbandon: (id: string) => void
+  onEdit: (id: string, field: "label" | "diff", value: string) => void
 }) {
   const isLeaf = node.level === "leaf"
   const [open, setOpen] = useState(depth < 2)
@@ -241,16 +250,23 @@ function ActionTreeNode({
       >
         <OpIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
         <div className="min-w-0 flex-1 leading-relaxed">
-          <div className="text-[12.5px] text-foreground/90">{node.label}</div>
+          <input
+            className={`w-full bg-transparent text-foreground/90 outline-none border-b border-transparent focus:border-border/60 transition ${compact ? "text-[13px]" : "text-[14px]"}`}
+            value={node.label}
+            onChange={(e) => onEdit(node.id, "label", e.target.value)}
+          />
           {node.scopePath && (
-            <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/60">
+            <div className={`mt-0.5 truncate font-mono text-muted-foreground/60 ${compact ? "text-[10.5px]" : "text-[12px]"}`}>
               {node.scopePath}
             </div>
           )}
-          {node.diff && (
-            <pre className="mt-1 overflow-x-auto rounded-md bg-muted/40 px-2 py-1 font-mono text-[10px] leading-snug text-muted-foreground ring-1 ring-border/40">
-              {node.diff}
-            </pre>
+          {node.diff !== undefined && (
+            <textarea
+              className={`mt-1 w-full resize-y overflow-x-auto rounded-md bg-muted/40 px-2 py-1.5 font-mono leading-snug text-muted-foreground ring-1 ring-border/40 outline-none focus:ring-2 focus:ring-primary/30 transition min-h-[2.5em] ${compact ? "text-[12px]" : "text-[13px]"}`}
+              value={node.diff}
+              rows={Math.max(2, (node.diff.match(/\n/g)?.length ?? 0) + 1)}
+              onChange={(e) => onEdit(node.id, "diff", e.target.value)}
+            />
           )}
         </div>
       </div>
@@ -280,7 +296,9 @@ function ActionTreeNode({
         <span
           className={cn(
             "flex-1 truncate text-left",
-            isRoot ? "font-serif text-[14px] text-foreground" : "text-[13px] text-foreground/90",
+            isRoot
+              ? `font-serif text-foreground ${compact ? "text-[14px]" : "text-[16px]"}`
+              : `text-foreground/90 ${compact ? "text-[13px]" : "text-[14px]"}`,
           )}
         >
           {node.label}
@@ -319,6 +337,7 @@ function ActionTreeNode({
               compact={compact}
               onConfirm={onConfirm}
               onAbandon={onAbandon}
+              onEdit={onEdit}
             />
           ))}
         </div>

@@ -109,11 +109,10 @@ export function Workbench({ book, onClose }: WorkbenchProps) {
   }, [tree, query])
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col bg-background/95 backdrop-blur-2xl animate-in fade-in duration-200">
-      {/* 全屏柔光层(与主层一致,使工作台保持窗边氛围) */}
+    <div className="absolute inset-0 z-30 flex flex-col bg-background/98 animate-in fade-in duration-200">
       <div className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
-        <div className="absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-[var(--light-warm)] opacity-50 blur-3xl animate-drift" />
-        <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full bg-[var(--light-cool)] opacity-30 blur-3xl animate-drift dark:opacity-20" />
+        <div className="absolute -right-32 -top-32 h-[480px] w-[480px] rounded-full bg-[var(--light-warm)] opacity-50 blur-3xl" />
+        <div className="absolute -bottom-40 -left-32 h-[420px] w-[420px] rounded-full bg-[var(--light-cool)] opacity-30 blur-3xl dark:opacity-20" />
       </div>
 
       {/* 顶栏 */}
@@ -197,7 +196,7 @@ export function Workbench({ book, onClose }: WorkbenchProps) {
         </div>
 
         {/* 右:文件树 */}
-        <aside className="min-h-0 border-l border-border/60 bg-sidebar/40 paper-soft backdrop-blur-xl">
+        <aside className="min-h-0 border-l border-border/60 bg-sidebar/80 paper-soft">
           <div className="flex h-full min-h-0 flex-col">
             <div className="shrink-0 px-3 pt-3 pb-2">
               <div className="relative">

@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import type { Chapter, ChapterContent } from "@/lib/types"
 import { writeBookFile, readBookFile, getBookFileMtime } from "@/lib/server/book-store"
+import { getBookDir } from "@/lib/server/paths"
 
 const CHAPTER_DIR = "章节正文"
 
@@ -33,7 +34,7 @@ function statusFromWordCount(wordCount: number): "draft" | "writing" | "done" {
 }
 
 export async function listChapters(bookId: string): Promise<Chapter[]> {
-  const dir = path.join(process.cwd(), "data", "books", bookId, CHAPTER_DIR)
+  const dir = path.join(getBookDir(bookId), CHAPTER_DIR)
   try {
     const entries = await fs.readdir(dir)
     const mdFiles = entries.filter((e) => e.endsWith(".md")).sort()
@@ -68,7 +69,7 @@ export async function listChapters(bookId: string): Promise<Chapter[]> {
 }
 
 export async function createChapter(bookId: string, title?: string): Promise<Chapter> {
-  const dir = path.join(process.cwd(), "data", "books", bookId, CHAPTER_DIR)
+  const dir = path.join(getBookDir(bookId), CHAPTER_DIR)
   await fs.mkdir(dir, { recursive: true })
 
   // count existing chapters for index

@@ -1,11 +1,10 @@
 import fs from "fs/promises"
 import path from "path"
 import type { LedgerEntry } from "@/lib/types"
-
-const DATA_DIR = path.join(process.cwd(), "data", "books")
+import { getBookDir } from "@/lib/server/paths"
 
 function ledgerPath(bookId: string): string {
-  return path.join(DATA_DIR, bookId, "ledger.jsonl")
+  return path.join(getBookDir(bookId), "ledger.jsonl")
 }
 
 export async function appendLedgerEntry(

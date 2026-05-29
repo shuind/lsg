@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useRef, useEffect } from "react"
 import {
   BookOpen,
   Plus,
@@ -10,6 +11,7 @@ import {
   LayoutGrid,
   PanelLeftClose,
   PanelLeft,
+  Pencil,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Book, Chapter } from "@/lib/mock-data"
@@ -29,6 +31,7 @@ interface LeftSidebarProps {
   onNewBook: () => void
   onNewChapter: () => void
   onOpenWorkbench: (bookId: string) => void
+  onRenameBook: (bookId: string, newTitle: string) => void
 }
 
 export function LeftSidebar({
@@ -45,10 +48,33 @@ export function LeftSidebar({
   onNewBook,
   onNewChapter,
   onOpenWorkbench,
+  onRenameBook,
 }: LeftSidebarProps) {
+  const [editingBookId, setEditingBookId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState("")
+  const editRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingBookId && editRef.current) {
+      editRef.current.focus()
+      editRef.current.select()
+    }
+  }, [editingBookId])
+
+  function startRename(bookId: string, currentTitle: string) {
+    setEditingBookId(bookId)
+    setEditValue(currentTitle)
+  }
+
+  function commitRename() {
+    if (editingBookId && editValue.trim()) {
+      onRenameBook(editingBookId, editValue.trim())
+    }
+    setEditingBookId(null)
+  }
   if (collapsed) {
     return (
-      <aside className="relative flex h-full min-h-0 w-full flex-col items-center gap-1 bg-sidebar/60 paper-soft py-4 backdrop-blur-xl">
+      <aside className="relative flex h-full min-h-0 w-full flex-col items-center gap-1 bg-sidebar/80 paper-soft py-4">
         <button
           onClick={onToggleCollapsed}
           className="rounded-lg p-2 text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground"
@@ -93,12 +119,12 @@ export function LeftSidebar({
   }
 
   return (
-    <aside className="relative flex h-full min-h-0 w-full flex-col bg-sidebar/60 paper-soft backdrop-blur-xl">
+    <aside className="relative flex h-full min-h-0 w-full flex-col bg-sidebar/80 paper-soft">
       {/* 顶部品牌 */}
       <div className="shrink-0 px-5 pt-5 pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="relative h-7 w-7 rounded-lg bg-gradient-to-br from-accent/40 to-accent/10 ring-1 ring-border/60 animate-breathe-glow">
+            <div className="relative h-7 w-7 rounded-lg bg-gradient-to-br from-accent/40 to-accent/10 ring-1 ring-border/60">
               <Sparkles className="absolute inset-0 m-auto h-3.5 w-3.5 text-accent-foreground/80" />
             </div>
             <div className="leading-tight">
@@ -139,6 +165,7 @@ export function LeftSidebar({
         >
           {books.map((b) => {
             const active = b.id === activeBookId && mode !== "workbench"
+            const isEditing = editingBookId === b.id
             return (
               <div
                 key={b.id}
@@ -149,30 +176,67 @@ export function LeftSidebar({
                     : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                 )}
               >
-                <button
-                  onClick={() => onSelectBook(b.id)}
-                  className="flex flex-1 items-center gap-2 px-2.5 py-2 text-left text-[13px]"
-                >
-                  <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                  <span className="flex-1 truncate">{b.title}</span>
-                  <span className="text-[10px] tabular-nums text-muted-foreground/70">{b.updatedAt}</span>
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onOpenWorkbench(b.id)
-                  }}
-                  className={cn(
-                    "rounded-md p-1 transition",
-                    active
-                      ? "text-muted-foreground opacity-100 hover:bg-background/40 hover:text-foreground"
-                      : "text-muted-foreground/0 group-hover:text-muted-foreground group-hover:opacity-100 hover:bg-sidebar-accent hover:text-foreground",
-                  )}
-                  aria-label="打开工作台"
-                  title="打开这本书的工作台"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                </button>
+                {isEditing ? (
+                  <div className="flex flex-1 items-center gap-2 px-2.5 py-2">
+                    <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                    <input
+                      ref={editRef}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRename()
+                        if (e.key === "Escape") setEditingBookId(null)
+                      }}
+                      className="flex-1 bg-transparent text-[13px] outline-none ring-1 ring-ring rounded px-1"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onSelectBook(b.id)}
+                    className="flex flex-1 items-center gap-2 px-2.5 py-2 text-left text-[13px]"
+                  >
+                    <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                    <span className="flex-1 truncate">{b.title}</span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground/70">{b.updatedAt}</span>
+                  </button>
+                )}
+                {!isEditing && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      startRename(b.id, b.title)
+                    }}
+                    className={cn(
+                      "rounded-md p-1 transition",
+                      active
+                        ? "text-muted-foreground opacity-100 hover:bg-background/40 hover:text-foreground"
+                        : "text-muted-foreground/0 group-hover:text-muted-foreground group-hover:opacity-100 hover:bg-sidebar-accent hover:text-foreground",
+                    )}
+                    aria-label="重命名"
+                    title="重命名书籍"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+                {!isEditing && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onOpenWorkbench(b.id)
+                    }}
+                    className={cn(
+                      "rounded-md p-1 transition",
+                      active
+                        ? "text-muted-foreground opacity-100 hover:bg-background/40 hover:text-foreground"
+                        : "text-muted-foreground/0 group-hover:text-muted-foreground group-hover:opacity-100 hover:bg-sidebar-accent hover:text-foreground",
+                    )}
+                    aria-label="打开工作台"
+                    title="打开这本书的工作台"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             )
           })}

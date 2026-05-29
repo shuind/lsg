@@ -2,8 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import type { Skill } from "@/lib/types"
 import { readBookFile, getBookFileMtime } from "@/lib/server/book-store"
-
-const DATA_DIR = path.join(process.cwd(), "data", "books")
+import { getBookDir } from "@/lib/server/paths"
 
 const SOURCE_FILE = "创作指南.md"
 const SUMMARY_FILE = "skills/style_guide_summary.md"
@@ -16,7 +15,7 @@ const KEYWORD_LINES = ["文风", "语感", "禁忌", "人物", "结构", "节奏
 // ─── Paths ────────────────────────────────────────────────────
 
 function metaPath(bookId: string): string {
-  return path.join(DATA_DIR, bookId, META_FILE)
+  return path.join(getBookDir(bookId), META_FILE)
 }
 
 // ─── Metadata I/O ─────────────────────────────────────────────
@@ -133,7 +132,7 @@ export async function refreshStyleGuideSummary(bookId: string): Promise<{ skill:
   const summary = generateSummary(sourceContent ?? "")
 
   // write summary file (goes through normal file write, not writeBookFile, to avoid ledger noise)
-  const summaryAbs = path.join(DATA_DIR, bookId, SUMMARY_FILE)
+  const summaryAbs = path.join(getBookDir(bookId), SUMMARY_FILE)
   await fs.mkdir(path.dirname(summaryAbs), { recursive: true })
   await fs.writeFile(summaryAbs, summary, "utf-8")
 

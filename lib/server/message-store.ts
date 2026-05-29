@@ -1,12 +1,11 @@
 import fs from "fs/promises"
 import path from "path"
 import type { Message } from "@/lib/types"
-
-const DATA_DIR = path.join(process.cwd(), "data", "books")
+import { getBookDir } from "@/lib/server/paths"
 const MESSAGES_FILE = "messages.jsonl"
 
 function messagesPath(bookId: string): string {
-  return path.join(DATA_DIR, bookId, MESSAGES_FILE)
+  return path.join(getBookDir(bookId), MESSAGES_FILE)
 }
 
 export async function listMessages(bookId: string): Promise<Message[]> {

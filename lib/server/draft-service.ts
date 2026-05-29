@@ -55,7 +55,7 @@ ${context}${summaryBlock}${promptBlock}
       maxTokens: 1500,
     })
 
-    return result.trim() || FALLBACK_TEXT
+    return result.content.trim() || FALLBACK_TEXT
   } catch (err) {
     console.warn("[draft-service] LLM call failed:", err)
     return FALLBACK_TEXT

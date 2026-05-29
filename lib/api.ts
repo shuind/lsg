@@ -66,6 +66,49 @@ export async function createBook(title?: string): Promise<Book> {
   }
 }
 
+export async function renameBook(bookId: string, title: string): Promise<Book | null> {
+  try {
+    const res = await fetch(`/api/books/${bookId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    })
+    if (!res.ok) throw new Error("api failed")
+    const b = await res.json()
+    return { id: b.id, title: b.title, updatedAt: relativeTime(b.updatedAt) }
+  } catch {
+    return null
+  }
+}
+
+// === 初始化(合并请求) ===
+export async function initBook(bookId: string): Promise<{
+  chapters: Chapter[]
+  messages: Message[]
+  plan: ActionNode[]
+  cards: SettingCard[]
+}> {
+  try {
+    const res = await fetch(`/api/books/${bookId}/init`, { cache: "no-store" })
+    if (!res.ok) throw new Error("api failed")
+    const data = await res.json()
+    return {
+      chapters: Array.isArray(data.chapters) ? data.chapters : [],
+      messages: Array.isArray(data.messages) ? data.messages : [],
+      plan: Array.isArray(data.plan) ? data.plan : [],
+      cards: Array.isArray(data.cards) ? data.cards : [],
+    }
+  } catch {
+    await delay()
+    return {
+      chapters: mockChapters.filter((c) => c.bookId === bookId),
+      messages: mockMessages,
+      plan: mockActionTree,
+      cards: mockSettingCards,
+    }
+  }
+}
+
 // === 章节 ===
 export async function listChapters(bookId: string): Promise<Chapter[]> {
   try {

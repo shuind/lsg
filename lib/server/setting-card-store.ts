@@ -1,8 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import type { SettingCard } from "@/lib/types"
-
-const DATA_DIR = path.join(process.cwd(), "data", "books")
+import { getBookDir } from "@/lib/server/paths"
 
 async function readMdFiles(dir: string): Promise<{ name: string; content: string }[]> {
   try {
@@ -45,7 +44,7 @@ function isRuleFile(name: string, content: string): boolean {
 }
 
 export async function listSettingCards(bookId: string): Promise<SettingCard[]> {
-  const bookDir = path.join(DATA_DIR, bookId)
+  const bookDir = getBookDir(bookId)
   const cards: SettingCard[] = []
   let idx = 0
 

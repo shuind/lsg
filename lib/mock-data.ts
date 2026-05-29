@@ -20,7 +20,7 @@ export type Chapter = {
 // 对话气泡里嵌入的"理解 / 上下文 / 缺失信息"
 export type IntentBrief = {
   understood: string[]
-  contextPaths: string[]
+  contextPaths?: string[]
   missing?: string[]
 }
 

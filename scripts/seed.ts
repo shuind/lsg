@@ -1,7 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
-
-const DATA_DIR = path.join(process.cwd(), "data", "books")
+import { getBooksRoot } from "@/lib/server/paths"
 const BOOK_ID = "demo-guixu"
 
 const now = new Date().toISOString()
@@ -16,7 +15,7 @@ async function write(filePath: string, content: string) {
 }
 
 async function main() {
-  const bookDir = path.join(DATA_DIR, BOOK_ID)
+  const bookDir = path.join(getBooksRoot(), BOOK_ID)
 
   // book.json
   await write(path.join(bookDir, "book.json"), JSON.stringify({

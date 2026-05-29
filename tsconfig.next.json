@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "include": [
     "next-env.d.ts",
     "app/**/*.ts",
@@ -10,11 +10,14 @@
     "hooks/**/*.tsx",
     "lib/**/*.ts",
     "lib/**/*.tsx",
-    "scripts/**/*.ts"
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    ".next",
+    ".next/cache",
+    ".next/server",
+    ".next/static",
+    ".next/dev",
     "data",
     "../.lg-data"
   ]
